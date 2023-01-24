@@ -1,0 +1,43 @@
+pipeline {
+   environment {
+    dockerimagename = "chaitalis2510/sample"
+    dockerImage = ""
+  }
+ agent any
+  stages {
+    stage('Checkout Source') {
+      steps {
+        git 'https://gitlab360.enlight.dev/chaitali.patil/simple-web-app.git'
+      }
+    }
+    stage('Build image') {
+      steps{
+        script {
+          dockerImage = docker.build dockerimagename
+        }
+      }
+    }
+    stage('Pushing Image') {
+      environment {
+               registryCredential = 'dockerhublogin'
+           }
+      steps{
+        script {
+          docker.withRegistry( 'https://registry.hub.docker.com', registryCredential ) {
+            dockerImage.push("latest")
+          }
+        }
+      }
+    }
+    stage('Deploying App to Kubernetes') {
+      steps {
+        script {
+         sshPublisher(publishers: [sshPublisherDesc(configName: 'ansible', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: '''ansible-playbook -i /etc/ansible/hosts /opt/k8-lab/cicd-deployment.yml;
+ansible-playbook -i /etc/ansible/hosts /opt/k8-lab/cicd-service.yml;
+
+''', execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: '/opt/k8-lab', remoteDirectorySDF: false, removePrefix: '', sourceFiles: '**/*')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: true)])
+        }
+      }
+    }
+  }
+}
